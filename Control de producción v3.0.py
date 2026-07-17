@@ -28,6 +28,16 @@ def cargar_datos():
 def limpiar_pantalla():
     os.system('cls' if os.name == 'nt' else 'clear')
 
+def obtener_ultima_caja_global():
+    """Busca en todo el historial el número de caja más alto registrado para continuar el correlativo."""
+    max_caja = 0
+    for semana, dias in datos_produccion["produccion"].items():
+        for dia, registros in dias.items():
+            for r in registros:
+                if "caja_final" in r and r["caja_final"] > max_caja:
+                    max_caja = r["caja_final"]
+    return max_caja
+
 def configurar_pauta():
     limpiar_pantalla()
     print("=== CONFIGURAR PAUTA DEL MES ===")
@@ -66,18 +76,25 @@ def registrar_dia():
     limpiar_pantalla()
     print(f"=== INGRESANDO: {semana_sel} -> {dia_sel} ===")
     
-    # NUEVOS CAMPOS SOLICITADOS
     sap = input("Número de SAP / Orden: ").strip()
     maquina = input("Tipo de Máquina / Línea: ").strip()
     producto = input("Nombre del Producto: ").strip()
-    
-    # CAMPOS ANTERIORES
     serie = input("Número de Serie: ").strip()
     u_hoy = int(input("¿Cuántas unidades se produjeron?: "))
-    p_hoy = int(input("¿Cuántos palets completos se armaron?: "))
-    c_hoy = int(input("¿En qué número de caja quedó el último palet?: "))
     
-    # Creamos el registro con toda la nueva data técnica de la planta
+    # NUEVA LÓGICA AUTOMATIZADA DE PALETS Y CAJAS
+    p_hoy = int(input("¿Cuántos palets completos se armaron?: "))
+    cajas_por_palet = int(input("¿Cuántas cajas lleva cada palet?: "))
+    
+    # Calculamos el total de cajas de este lote
+    total_cajas_lote = p_hoy * cajas_por_palet
+    
+    # El sistema busca en qué caja se quedó el turno anterior de forma automática
+    ultima_caja_sistema = obtener_ultima_caja_global()
+    caja_inicial = ultima_caja_sistema + 1
+    caja_final = ultima_caja_sistema + total_cajas_lote
+    
+    # Creamos el registro con los cálculos automáticos incorporados
     nuevo_registro = {
         "sap": sap if sap else "N/A",
         "maquina": maquina if maquina else "N/A",
@@ -85,13 +102,17 @@ def registrar_dia():
         "serie": serie if serie else "N/A",
         "unidades": u_hoy,
         "palets": p_hoy,
-        "ultima_caja": c_hoy
+        "cajas_por_palet": cajas_por_palet,
+        "total_cajas_lote": total_cajas_lote,
+        "caja_inicial": caja_inicial if p_hoy > 0 else 0,
+        "caja_final": caja_final if p_hoy > 0 else 0
     }
     
     datos_produccion["produccion"][semana_sel][dia_sel].append(nuevo_registro)
     
     guardar_datos()
-    print(f"\n✅ Registro guardado exitosamente para el {dia_sel}.")
+    print(f"\n✅ ¡Registro guardado! Calculadas {total_cajas_lote} cajas en total.")
+    print(f"📌 Correlativo automático: Desde caja #{caja_inicial} hasta caja #{caja_final}")
     input("\nPresione Enter para volver...")
 
 def ver_reporte():
@@ -99,6 +120,7 @@ def ver_reporte():
     total_pauta = sum(datos_produccion["pauta_mensual"].values())
     total_real_mes = 0
     total_palets_mes = 0
+    total_cajas_mes = 0
     
     print("=======================================================================")
     print("                REPORTE DETALLADO DE PLANTA (PRODUCCIÓN)               ")
@@ -125,7 +147,10 @@ def ver_reporte():
                 print(f"     📍 {dia}:")
                 for r in registros:
                     print(f"       [SAP: {r['sap']}] | [Máq: {r['maquina']}] | [Prod: {r['producto']}]")
-                    print(f"       ↳ Serie: {r['serie']} | {r['unidades']} u. | {r['palets']} palets | Últ. Caja: #{r['ultima_caja']}")
+                    print(f"       ↳ Serie: {r['serie']} | {r['unidades']} u. | {r['palets']} palets")
+                    if r['palets'] > 0:
+                        print(f"       ↳ Empaque: {r['total_cajas_lote']} cajas ({r['cajas_por_palet']} c/u) | Rango: #{r['caja_inicial']} al #{r['caja_final']}")
+                        total_cajas_mes += r['total_cajas_lote']
                     print("       " + "-"*50)
                 hubo_produccion = True
                 
@@ -138,6 +163,7 @@ def ver_reporte():
     print(f"Meta Total del Mes:       {total_pauta} u.")
     print(f"Producción Acumulada:     {total_real_mes} u.")
     print(f"Palets Totales del Mes:   {total_palets_mes} p.")
+    print(f"Cajas Totales del Mes:    {total_cajas_mes} cajas.")
     
     diferencia = total_real_mes - total_pauta
     if diferencia >= 0:
@@ -152,9 +178,9 @@ cargar_datos()
 
 while True:
     limpiar_pantalla()
-    print("📱 CONTROL DE PRODUCCIÓN PRO v4.0 (Planta Completa) 📱")
+    print("📱 CONTROL DE PRODUCCIÓN PRO v5.0 (Cajas Auto) 📱")
     print("1. Configurar Pautas Semanales")
-    print("2. Registrar Turno (SAP, Máquina, Producto, Serie, Unidades)")
+    print("2. Registrar Turno (Cálculo automático de Cajas)")
     print("3. Ver Reporte General y Desglose")
     print("4. Salir")
     
