@@ -29,7 +29,6 @@ def limpiar_pantalla():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 def obtener_ultima_caja_global():
-    """Busca en todo el historial el número de caja más alto registrado para continuar el correlativo."""
     max_caja = 0
     for semana, dias in datos_produccion["produccion"].items():
         for dia, registros in dias.items():
@@ -80,27 +79,35 @@ def registrar_dia():
     maquina = input("Tipo de Máquina / Línea: ").strip()
     producto = input("Nombre del Producto: ").strip()
     serie = input("Número de Serie: ").strip()
-    u_hoy = int(input("¿Cuántas unidades se produjeron?: "))
     
-    # NUEVA LÓGICA AUTOMATIZADA DE PALETS Y CAJAS
+    # EFICIENCIA: Meta esperada para este lote/máquina
+    meta_lote = int(input("¿Cuál era la meta de unidades para este lote/turno?: "))
+    u_hoy = int(input("¿Cuántas unidades reales se produjeron?: "))
+    
+    # Calcular porcentaje de eficiencia
+    if meta_lote > 0:
+        eficiencia = (u_hoy / meta_lote) * 100
+    else:
+        eficiencia = 100.0
+        
     p_hoy = int(input("¿Cuántos palets completos se armaron?: "))
     cajas_por_palet = int(input("¿Cuántas cajas lleva cada palet?: "))
     
-    # Calculamos el total de cajas de este lote
+    # Lógica de Cajas Automáticas
     total_cajas_lote = p_hoy * cajas_por_palet
-    
-    # El sistema busca en qué caja se quedó el turno anterior de forma automática
     ultima_caja_sistema = obtener_ultima_caja_global()
     caja_inicial = ultima_caja_sistema + 1
     caja_final = ultima_caja_sistema + total_cajas_lote
     
-    # Creamos el registro con los cálculos automáticos incorporados
+    # Guardamos todo el paquete de datos en el registro
     nuevo_registro = {
         "sap": sap if sap else "N/A",
         "maquina": maquina if maquina else "N/A",
         "producto": producto if producto else "N/A",
         "serie": serie if serie else "N/A",
+        "meta_lote": meta_lote,
         "unidades": u_hoy,
+        "eficiencia": round(eficiencia, 1),
         "palets": p_hoy,
         "cajas_por_palet": cajas_por_palet,
         "total_cajas_lote": total_cajas_lote,
@@ -111,8 +118,7 @@ def registrar_dia():
     datos_produccion["produccion"][semana_sel][dia_sel].append(nuevo_registro)
     
     guardar_datos()
-    print(f"\n✅ ¡Registro guardado! Calculadas {total_cajas_lote} cajas en total.")
-    print(f"📌 Correlativo automático: Desde caja #{caja_inicial} hasta caja #{caja_final}")
+    print(f"\n✅ ¡Registro guardado! Rendimiento calculado: {nuevo_registro['eficiencia']}%")
     input("\nPresione Enter para volver...")
 
 def ver_reporte():
@@ -123,7 +129,7 @@ def ver_reporte():
     total_cajas_mes = 0
     
     print("=======================================================================")
-    print("                REPORTE DETALLADO DE PLANTA (PRODUCCIÓN)               ")
+    print("           REPORTE DE PLANTA CON ALERTAS DE EFICIENCIA                 ")
     print("=======================================================================")
     
     for sem, dias in datos_produccion["produccion"].items():
@@ -138,7 +144,7 @@ def ver_reporte():
         total_real_mes += real_sem
         total_palets_mes += palets_sem
         
-        print(f"\n🔹 {sem} (Meta: {pauta_sem} u. | Real: {real_sem} u.)")
+        print(f"\n🔹 {sem} (Meta Semanal: {pauta_sem} u. | Total Real: {real_sem} u.)")
         print(f"   ↳ Palets totales en la semana: {palets_sem}")
         
         hubo_produccion = False
@@ -146,10 +152,19 @@ def ver_reporte():
             if registros:
                 print(f"     📍 {dia}:")
                 for r in registros:
+                    # Determinar el semáforo o alerta de eficiencia
+                    if r["eficiencia"] < 80.0:
+                        alerta = f"🔴 CRÍTICO ({r['eficiencia']}% de meta)"
+                    elif r["eficiencia"] < 100.0:
+                        alerta = f"🟡 BAJO TARGET ({r['eficiencia']}% de meta)"
+                    else:
+                        alerta = f"🟢 EFICIENTE ({r['eficiencia']}% de meta)"
+                        
                     print(f"       [SAP: {r['sap']}] | [Máq: {r['maquina']}] | [Prod: {r['producto']}]")
-                    print(f"       ↳ Serie: {r['serie']} | {r['unidades']} u. | {r['palets']} palets")
+                    print(f"       ↳ Rendimiento: {alerta} | Meta: {r['meta_lote']} u. -> Real: {r['unidades']} u.")
+                    print(f"       ↳ Serie: {r['serie']} | {r['palets']} palets")
                     if r['palets'] > 0:
-                        print(f"       ↳ Empaque: {r['total_cajas_lote']} cajas ({r['cajas_por_palet']} c/u) | Rango: #{r['caja_inicial']} al #{r['caja_final']}")
+                        print(f"       ↳ Empaque: {r['total_cajas_lote']} cajas | Rango: #{r['caja_inicial']} al #{r['caja_final']}")
                         total_cajas_mes += r['total_cajas_lote']
                     print("       " + "-"*50)
                 hubo_produccion = True
@@ -178,9 +193,9 @@ cargar_datos()
 
 while True:
     limpiar_pantalla()
-    print("📱 CONTROL DE PRODUCCIÓN PRO v5.0 (Cajas Auto) 📱")
+    print("📱 CONTROL DE PRODUCCIÓN PRO v6.0 (Eficiencia + Cajas) 📱")
     print("1. Configurar Pautas Semanales")
-    print("2. Registrar Turno (Cálculo automático de Cajas)")
+    print("2. Registrar Turno (Con Meta y Alerta de Eficiencia)")
     print("3. Ver Reporte General y Desglose")
     print("4. Salir")
     
