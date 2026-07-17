@@ -1,4 +1,3 @@
-v1.0 de control de profuccion en planta 
 v1.0 de control de produccion en planta 
 lo que hace este programa es brindarle a los supervisores la facilidad de poder tener disponible su progreso de 
 prodduccion semanal o mensual 
